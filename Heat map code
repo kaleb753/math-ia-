@@ -1,8 +1,33 @@
+# prompt: 1. Purpose:
+# You want to visualize the probability of scoring a basketball shot based on three factors: release height, shooting distance, and shooting angle.
+# You are using a logistic regression model to quantify the relationship between these factors and the probability of scoring.
+# You want to generate heatmaps to visually represent the probability of scoring for different combinations of these factors.
+# 2. Data:
+# You have collected data and fitted a logistic regression model.
+# The coefficients from your model are stored in a dictionary called data, which includes the release heights, intercept (β0), and coefficients for height (β1), distance (β2), and angle (β3).
+# You might need to adjust or interpolate some coefficients, particularly for specific heights like 8cm, based on your data analysis and model fitting.
+# 3. Ranges:
+# Shooting distance: You want the range to be from 0 to 3 meters.
+# Shooting angle: You want the range to be from -100 to 100 degrees.
+# These ranges should be reflected accurately in the heatmap axes.
+# 4. Visualization:
+# Normalization: You want the probability color scale to be normalized to the range [0, 1] so that the heatmaps for different release heights are comparable, even if the absolute probability values differ.
+# Colormap: You prefer the "YlGnBu" colormap, but you are open to experimenting with other suitable colormaps.
+# Axis ticks: You want the x-axis ticks to clearly show the -100 and 100 degree angles, possibly with some intermediate ticks for better visualization.
+# Colorbar label: You want the colorbar label to indicate that the probability values are normalized.
+# 5. Other relevant context:
+# You are using Google Colab for this analysis.
+# Your exploration is part of an IB Higher Level Mathematics Analysis And Approaches Exploration project.
+# The focus is on optimizing angle, release height, and shooting distance to maximize scoring probability.Height (cm)	β0	β1	β2	β3
+# 0	-1.099	0	0.2418	-0.000961
+# 4	-1.099	0.01459	0.1629	0.003048
+# 6	-1.099	0.03404	0.35
+
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 
-# Assume you have collected data and fitted a logistic regression model
-# The coefficients from your model are stored in the 'data' dictionary
+# Data and Model Coefficients (Replace with your actual data)
 data = {
     "Height (cm)": [0, 4, 6, 8, 10.5],  # Release heights
     "β0": [-1.099, -1.099, -1.099, -1.099, -1.099],  # Intercept
@@ -11,40 +36,49 @@ data = {
     "β3": [-0.000961, 0.003048, 0, -0.0004733, -0.004359],  # Coefficient for angle
 }
 
-# Interpolate β3 for 8cm (if needed) - this part can be adjusted 
-# based on your data analysis and model fitting
-#data['β3'][data['Height (cm)'].index(8)] = np.interp(8, [data['Height (cm)'][i] for i in [1, -2]], [data['β3'][i] for i in [1,-2]])
-
+# Interpolation functions for coefficients
+f_beta1 = interp1d(data["Height (cm)"], data["β1"])
+f_beta2 = interp1d(data["Height (cm)"], data["β2"])
+f_beta3 = interp1d(data["Height (cm)"], data["β3"])
 
 # Define ranges for shooting distance and angle
-distances = np.linspace(1, 3, 50)  # Shooting distances (1m to 3m)
-angles = np.linspace(-90, 90, 50)  # Shooting angles (-90° to 90°)
+distances = np.linspace(0, 3, 50)  # Shooting distances (0m to 3m)
+angles = np.linspace(-90, 90, 45)  # Shooting angles (-100° to 100°)
 
 # Create a meshgrid for distance and angle
 distance_grid, angle_grid = np.meshgrid(distances, angles)
 
 # Function to calculate probability based on the logistic regression model
 def calculate_probability(height, distance, angle):
-    h_idx = data["Height (cm)"].index(height)  # Get index for height
-    β0, β1, β2, β3 = data["β0"][h_idx], data["β1"][h_idx], data["β2"][h_idx], data["β3"][h_idx]
-    log_odds = β0 + β1 * height + β2 * distance + β3 * angle
+    beta1 = f_beta1(height)
+    beta2 = f_beta2(height)
+    beta3 = f_beta3(height)
+    log_odds = data["β0"][0] + beta1*height + beta2*distance + beta3*angle #using beta0 for height 0
     probability = 1 / (1 + np.exp(-log_odds))
     return probability
 
-# Generate heatmaps for each release height
-for height in data["Height (cm)"]:
-    probabilities = calculate_probability(height, distance_grid, angle_grid)
+# Generate heatmaps for each release height with normalized probabilities
+heights = [0, 4, 6, 8, 10.5] #using discrete heights
+for height in heights:
+  probabilities = calculate_probability(height, distance_grid, angle_grid)
 
-    plt.figure(figsize=(8, 6))
-    plt.imshow(
-        probabilities,
-        extent=[distances.min(), distances.max(), angles.min(), angles.max()],
-        aspect="auto",
-        origin="lower",
-        cmap="YlGnBu",  # Choose a suitable colormap
-    )
-    plt.colorbar(label="Probability of Scoring")
-    plt.xlabel("Shooting Distance (m)")
-    plt.ylabel("Shooting Angle (degrees)")
-    plt.title(f"Heatmap for Release Height = {height}cm")
-    plt.show()
+  # Normalize probabilities to the range [0, 1]
+  normalized_probs = (probabilities - probabilities.min()) / (probabilities.max() - probabilities.min())
+
+  plt.figure(figsize=(8, 6))
+  plt.imshow(
+      normalized_probs,  # Use normalized probabilities for plotting
+      extent=[angles.min(), angles.max(), distances.min(), distances.max()],  # Corrected extent
+      aspect="auto",
+      origin="lower",
+      cmap="YlGnBu",  
+  )
+  plt.colorbar(label="Probability of Scoring (Normalized)")  # Update colorbar label
+  plt.xlabel("Shooting Angle (degrees)")
+  plt.ylabel("Shooting Distance (m)")
+  plt.title(f"Heatmap for Release Height = {height}cm")
+
+  # Set x-axis ticks to show -100 and 100
+  plt.xticks(np.linspace(angles.min(), angles.max(), 5))  # Adjust the number 5 for more/less ticks
+  # or plt.xticks([-90, -45, 0, 45, 90])  
+  plt.show()
